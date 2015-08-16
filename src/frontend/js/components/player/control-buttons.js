@@ -1,16 +1,12 @@
 define(function(require) {
   'use strict';
 
-  var remote = requireNode('remote');
-  var dialog = remote.require('dialog');
-
   var shell = requireNode('shell');
-  var request = requireNode('request');
   var crypto = requireNode('crypto');
-  var fs = requireNode('fs');
-  var Notifier = require('modules/Notifier');
-  var Player = require('modules/Player');
+
   var React = require('react');
+  var Player = require('modules/Player');
+  var Notifier = require('modules/Notifier');
 
   var PlayerControlButtons = React.createClass({
     getInitialState: function() {
@@ -91,45 +87,6 @@ define(function(require) {
       });
     },
 
-    _onDownloadButtonClick: function() {
-      Player.ready().then(function(player) {
-        var src = player.src();
-        if (!src) {
-          return;
-        }
-
-        var filename =
-          'music-' + crypto.randomBytes(3).toString('hex') + '.mp4';
-
-        dialog.showSaveDialog({
-          title: 'Where to download your track ?',
-          defaultPath: filename
-        }, (path) => {
-          if (!path) {
-            Notifier.alert('Please double check your filepath.');
-          }
-          else {
-            Notifier.alert('Start to download your track !');
-            // we got the path from fakeFile, so it's time to save
-            // the real streaming file to override it !
-            //
-            // I know this idea is smart :)
-            var downloadRequest = request.get(src).pipe(
-              fs.createWriteStream(path));
-
-            downloadRequest
-              .on('error', () => {
-                Notifier.alert('Sorry, something went wrong, please try again');
-                console.log('error when saving file from stream');
-              })
-              .on('finish', () => {
-                Notifier.alert('Download finished ! Go check your track :)');
-              });
-          }
-        });
-      });
-    },
-
     _onExternalButtonClick: function() {
       var track = Player.playingTrack;
       if (track) {
@@ -199,12 +156,6 @@ define(function(require) {
             title={playerRepeatHint}>
               <i className="fa fa-fw fa-repeat"></i>
               <span className="mode">{playerRepeatWording}</span>
-          </button>
-          <button
-            className="download-button"
-            onClick={this._onDownloadButtonClick}
-            title="Download this track">
-              <i className="fa fa-fw fa-cloud-download"></i>
           </button>
           <button
             className="external-button"

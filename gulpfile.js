@@ -15,6 +15,7 @@ var electron = require('gulp-atom-electron');
 var htmlreplace = require('gulp-html-replace');
 var sequence = require('gulp-sequence');
 var newer = require('gulp-newer');
+var livereload = require('gulp-livereload');
 
 var path = require('path');
 var packageJSON = require(path.join(__dirname, 'package.json'));
@@ -123,31 +124,39 @@ gulp.task('override', function() {
     .pipe(plumber())
     .pipe(gulpif(isProduction(), htmlreplace({
       css: [
-        'dist/frontend/vendor/bootstrap/dist/css/bootstrap.min.css',
-        'dist/frontend/vendor/components-font-awesome/css/font-awesome.min.css',
-        'dist/frontend/vendor/video.js/dist/video-js/video-js.min.css',
-        'dist/frontend/vendor/animate.css/animate.min.css',
         'dist/frontend/css/index.css'
-      ],
-      backend_js: [
-        'dist/backend/main.js'
       ],
       frontend_js: {
         src: 'dist/main',
-        tpl: '<script data-main="%s" src="dist/frontend/vendor/requirejs/require.js"></script>'
-      }
+        tpl: '<script data-main="%s" src="node_modules/requirejs/require.js"></script>'
+      },
+      livereload: []
     })))
     .pipe(rename(INDEX_FILE))
     .pipe(gulp.dest('./'));
 });
 
+// NOTE
+// This task should be used with watch task
+gulp.task('reload', function() {
+  livereload.reload();
+});
+
 gulp.task('watch', function() {
-  gulp.watch(LESS_FILES, ['less']);
+  livereload.listen();
+  gulp.watch(LESS_FILES, ['less', 'reload']);
   gulp.watch([
     FRONTEND_JS_FILES,
     BACKEND_JS_FILES,
     INDEX_TEMPLATE_FILE
-  ], ['default']);
+  ], ['default', 'reload']);
+});
+
+gulp.task('env', function(cb) {
+  var envInfo = {
+    env: CURRENT_ENVIRONMENT
+  };
+  fs.writeFile('env.json', JSON.stringify(envInfo), cb);
 });
 
 gulp.task('package', function(done) {
@@ -208,11 +217,15 @@ gulp.task('package', function(done) {
   // TODO
   // We have to fix more stuffs later after atomshell is updated
   return gulp.src(includedFiles).pipe(electron({
-    version: '0.28.3',
+    version: '0.30.0',
     platform: platform,
     arch: arch,
+    // for Mac
     darwinIcon: path.join(iconFolderPath, 'kaku.icns'),
-    winIcon: path.join(iconFolderPath, 'kaku.ico')
+    // for windows
+    winIcon: path.join(iconFolderPath, 'kaku.ico'),
+    companyName: 'Kaku',
+    copyright: 'MIT'
   })).pipe(electron.zfsdest('build/app.zip'));
 });
 
@@ -252,6 +265,7 @@ gulp.task('build', function(callback) {
     'linter:src',
     'copy:frontend',
     'copy:backend',
+    'env',
     'rjs',
     'override',
     'package'
@@ -267,6 +281,7 @@ gulp.task('default', function(callback) {
     'linter:src',
     'copy:frontend',
     'copy:backend',
+    'env',
     'override'
   )(callback);
 });

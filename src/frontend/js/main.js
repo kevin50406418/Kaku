@@ -21,6 +21,7 @@ fetchRjsConfig().then(function(rjsConfig) {
     'react',
     'components/toolbar/container',
     'components/topranking/container',
+    'components/news/container',
     'components/alltracks/container',
     'components/player/container',
     'components/menus/container',
@@ -32,6 +33,7 @@ fetchRjsConfig().then(function(rjsConfig) {
     'backend/modules/PreferenceManager',
     'backend/modules/PlaylistManager',
     'backend/modules/L10nManager',
+    'backend/modules/KakuCore',
     'backend/modules/Searcher',
     'backend/modules/AutoUpdater',
     'backend/modules/Tracker',
@@ -43,6 +45,7 @@ fetchRjsConfig().then(function(rjsConfig) {
     React,
     ToolbarContainer,
     TopRankingContainer,
+    NewsContainer,
     AllTracksContainer,
     PlayerContainer,
     MenusContainer,
@@ -54,6 +57,7 @@ fetchRjsConfig().then(function(rjsConfig) {
     PreferenceManager,
     PlaylistManager,
     L10nManager,
+    KakuCore,
     Searcher,
     AutoUpdater,
     Tracker,
@@ -82,6 +86,7 @@ fetchRjsConfig().then(function(rjsConfig) {
 
       componentDidMount: function() {
         this._triggerAutoUpdater();
+        this._initializeAppTitle();
         this._initializeDefaultLanguage();
         this._initializeDefaultSearcher();
         this._initializeKonamiCode();
@@ -90,10 +95,19 @@ fetchRjsConfig().then(function(rjsConfig) {
         Tracker.pageview('/').send();
       },
 
+      _initializeAppTitle: function() {
+        L10nManager.get('app_title_normal').then((translatedTitle) => {
+          KakuCore.title = translatedTitle;
+        });
+      },
+
       _initializeDefaultLanguage: function() {
         var defaultLanguage =
           PreferenceManager.getPreference('default.language');
-        L10nManager.changeLanguage(defaultLanguage);
+        // For new users, there is no `defaultLanguage` in DB yet.
+        if (defaultLanguage) {
+          L10nManager.changeLanguage(defaultLanguage);
+        }
       },
 
       _initializeDefaultSearcher: function() {
@@ -192,6 +206,12 @@ fetchRjsConfig().then(function(rjsConfig) {
                     className="tab-pane active"
                     id="tab-home">
                       <TopRankingContainer/>
+                  </div>
+                  <div
+                    role="tabpanel"
+                    className="tab-pane"
+                    id="tab-news">
+                      <NewsContainer/>
                   </div>
                   <div
                     role="tabpanel"

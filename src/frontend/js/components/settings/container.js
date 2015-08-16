@@ -1,15 +1,25 @@
 define(function(require) {
   'use strict';
 
-  var React = require('react');
+  var remote = requireNode('remote');
+  var path = requireNode('path');
+  var App = remote.require('app');
+  var AppDialog = remote.require('dialog');
+
   var PreferenceManager = require('backend/modules/PreferenceManager');
+  var PlaylistManager = require('backend/modules/PlaylistManager');
+
+  var DropboxBackuper = require('backend/modules/backuper/DropboxBackuper');
+  var LocalBackuper = require('backend/modules/backuper/LocalBackuper');
+
   var L10nManager = require('backend/modules/L10nManager');
-  var KakuCore = require('backend/modules/KakuCore');
   var Searcher = require('backend/modules/Searcher');
   var DB = require('backend/modules/Database');
+  var React = require('react');
 
-  var Dialog = require('modules/Dialog');
   var L10nSpan = require('components/shared/l10n-span');
+  var Notifier = require('modules/Notifier');
+  var Dialog = require('modules/Dialog');
 
   var SettingsContainer = React.createClass({
     getInitialState: function() {
@@ -98,6 +108,102 @@ define(function(require) {
       event.preventDefault();
     },
 
+    _onClickToBackupLocalData: function() {
+      AppDialog.showOpenDialog({
+        title: 'Where to backup your track ?',
+        properties: ['openDirectory']
+      }, (folderPath) => {
+        Notifier.alert('Start to backup data !');
+
+        var playlists = PlaylistManager.export();
+        LocalBackuper.backup(playlists, {
+          basePath: folderPath[0],
+          folderName: 'kaku-backup'
+        }).then(() => {
+          Notifier.alert('backup data successfully :)');
+        }).catch((error) => {
+          Notifier.alert('Something went wrong, please try again');
+          console.log(error);
+        });
+      });
+    },
+
+    _onClickToBackupDropboxData: function() {
+      var playlists = PlaylistManager.export();
+      Notifier.alert('Start to backup data !');
+
+      DropboxBackuper.backup(playlists, {
+        folderName: 'playlists'
+      }).then(() => {
+        Notifier.alert('backup data successfully :)');
+      }).catch((error) => {
+        Notifier.alert('Something went wrong, please try again');
+        console.log(error);
+      });
+    },
+
+    _onClickToSyncLocalData: function() {
+      Promise.all([
+        L10nManager.get('settings_option_sync_data_confirm')
+      ]).then((translations) => {
+        Dialog.confirm(translations[0], (sure) => {
+          // make UX better
+          setTimeout(() => {
+            AppDialog.showOpenDialog({
+              title: 'Where is your backup file ?',
+              properties: ['openDirectory']
+            }, (folderPath) => {
+              if (folderPath) {
+                Notifier.alert('Start to sync data !');
+
+                LocalBackuper.syncDataBack({
+                  folderPath: folderPath[0]
+                }).then((playlists) => {
+                  return PlaylistManager.cleanup().then(() => {
+                    return PlaylistManager.import(playlists);
+                  });
+                }).then(() => {
+                  Notifier.alert('Sync data successfully :)');
+                }).catch((error) => {
+                  Notifier.alert('Something went wrong, please try again');
+                  console.log(error);
+                });
+              }
+            });
+          }, 1000);
+        });
+      });
+    },
+
+    _onClickToSyncDropboxData: function() {
+      Promise.all([
+        L10nManager.get('settings_option_sync_data_confirm')
+      ]).then((translations) => {
+        Dialog.confirm(translations[0], (sure) => {
+          if (sure) {
+            Notifier.alert('Start to sync data !');
+
+            // make UX better
+            setTimeout(() => {
+              // start to sync data from Dropbox
+              DropboxBackuper.syncDataBack({
+                folderPath: '/playlists'
+              }).then((playlists) => {
+                return PlaylistManager.cleanup().then(() => {
+                  return PlaylistManager.import(playlists);
+                });
+              }).then(() => {
+                Notifier.alert('Sync data successfully :)');
+              }).catch((error) => {
+                Notifier.alert('Something went wrong, please try again');
+                console.log(error);
+              });
+            }, 1000);
+          }
+        });
+      });
+    },
+
     _onClickToResetDatabse: function() {
       Promise.all([
         L10nManager.get('settings_option_reset_database_confirm')
@@ -105,7 +211,7 @@ define(function(require) {
         Dialog.confirm(translations[0], (sure) => {
           if (sure) {
             DB.resetDatabase().then(() => {
-              KakuCore.reload();
+              remote.getCurrentWindow().reload();
             });
           }
         });
@@ -164,6 +270,53 @@ define(function(require) {
                     className="form-control"
                     onChange={this._onSearcherChange}
                     ref="supportedSearcherSelect"></select>
+                </div>
+              </div>
+              <div className="form-group">
+                <label className="col-sm-3 control-label">
+                  <L10nSpan l10nId="settings_option_backup"/>
+                </label>
+                <div className="col-sm-6">
+                  <div className="btn-group" role="group">
+                    <div className="btn-group" role="group">
+                      <button
+                        className="btn btn-default dropdown-toggle"
+                        data-toggle="dropdown"
+                        aria-haspopup="true"
+                        aria-expanded="false">
+                          <L10nSpan l10nId="settings_option_choose_backup_method"/>
+                          &nbsp;
+                          <span className="caret"></span>
+                      </button>
+                      <ul className="dropdown-menu">
+                        <li>
+                          <a href="#" onClick={this._onClickToBackupLocalData}>
+                            <i className="fa fa-fw fa-desktop"></i>
+                            <L10nSpan l10nId="settings_option_backup_to_local"/>
+                          </a>
+                        </li>
+                        <li>
+                          <a href="#" onClick={this._onClickToBackupDropboxData}>
+                            <i className="fa fa-fw fa-dropbox"></i>
+                            <L10nSpan l10nId="settings_option_backup_to_dropbox"/>
+                          </a>
+                        </li>
+                        <li className="divider" role="separator"></li>
+                        <li>
+                          <a href="#" onClick={this._onClickToSyncLocalData}>
+                            <i className="fa fa-fw fa-desktop"></i>
+                            <L10nSpan l10nId="settings_option_sync_data_from_local"/>
+                          </a>
+                        </li>
+                        <li>
+                          <a href="#" onClick={this._onClickToSyncDropboxData}>
+                            <i className="fa fa-fw fa-dropbox"></i>
+                            <L10nSpan l10nId="settings_option_sync_data_from_dropbox"/>
+                          </a>
+                        </li>
+                      </ul>
+                    </div>
+                  </div>
                 </div>
               </div>
               <div className="form-group">
